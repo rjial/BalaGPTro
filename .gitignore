@@ -1,0 +1,12 @@
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# Logs / scratch
+*.log
+/scratch/
+/tmp/
+
+# Local notes
+TODO.local.md

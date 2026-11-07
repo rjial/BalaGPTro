@@ -1,0 +1,13 @@
+{
+  "id": "BalaGPTro",
+  "name": "BalaGPTro",
+  "display_name": "BalaGPTro — AI Advisor",
+  "author": ["rizalabdulbasith"],
+  "description": "Bring-your-own-key AI advisor & chat for Balatro. Reads your hand, jokers, consumables and shop, then suggests plays and answers questions. Supports Anthropic, OpenAI and Gemini.",
+  "prefix": "balagpt",
+  "main_file": "main.lua",
+  "priority": 0,
+  "badge_colour": "5CA4E5",
+  "version": "0.1.0",
+  "dependencies": ["Steamodded (>=1.0.0)"]
+}
