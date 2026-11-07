@@ -1,0 +1,50 @@
+name: Release
+
+# Publish a GitHub Release whenever the SemVer in BalaGPTro.json changes.
+# The version field is the single source of truth: a release (and tag v<version>)
+# is created only if that tag does not already exist, so pushes that don't bump
+# the version are no-ops.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from BalaGPTro.json
+        id: v
+        run: echo "version=$(jq -r .version BalaGPTro.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether the tag already exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build mod zip
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git archive --format=zip --prefix=BalaGPTro/ \
+            -o "BalaGPTro-v${{ steps.v.outputs.version }}.zip" HEAD
+
+      - name: Create release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.v.outputs.version }}" \
+            "BalaGPTro-v${{ steps.v.outputs.version }}.zip" \
+            --title "v${{ steps.v.outputs.version }}" \
+            --generate-notes

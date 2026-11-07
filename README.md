@@ -221,6 +221,19 @@ redacted even with `debug_log` on).
 
 ---
 
+## Versioning & releases
+
+The mod follows [SemVer](https://semver.org/). The version in `BalaGPTro.json`
+(`version`) is the single source of truth. A GitHub Action
+(`.github/workflows/release.yml`) watches `main`: when that version changes to one
+with no matching `v<version>` tag, it creates the tag and a GitHub Release with a
+ready-to-install `BalaGPTro-v<version>.zip` (extract into your `Mods` folder).
+
+To cut a release: bump `version` in `BalaGPTro.json` (e.g. `0.1.0` → `0.2.0`),
+commit, and push to `main`.
+
+---
+
 ## Credits & License
 
 `src/draggable_container.lua` is derived from **BalaLib** by Toeler
