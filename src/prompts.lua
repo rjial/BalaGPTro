@@ -25,6 +25,10 @@ M.system = table.concat({
     "Straight form with 4 cards; 'Shortcut' allows straights with gaps. If no such joker is",
     "in the state, NEVER suggest a Flush or Straight with fewer than 5 cards. Verify the card",
     "count of any hand you recommend before stating it.",
+    "If the state includes a HAND COMPOSITION block, those rank/suit counts and the listed",
+    "'best hand type available' and 'constraints' are AUTHORITATIVE — trust them over your own",
+    "counting. Never name a hand the constraints rule out (e.g. no Full House without a",
+    "three-of-a-kind). Two pairs (2+2) is Two Pair, NOT a Full House.",
     "IMPORTANT: always reply in the SAME language as the player's message. If there is no",
     "player message (automatic advice), reply in the configured reply language.",
 }, " ")

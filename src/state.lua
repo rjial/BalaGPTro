@@ -166,6 +166,55 @@ local function deck_summary(area)
     return { total = total, suits = fmt(suits), ranks = fmt(ranks, rank_order) }
 end
 
+-- Tally the cards currently in hand by rank and suit, and derive the hand types
+-- that are actually POSSIBLE from them. The LLM is unreliable at classifying a
+-- hand by eye (e.g. calling two pair a full house), so hand it the raw counts
+-- plus a factual feasibility line it only has to read, not compute.
+local function hand_composition(area)
+    if not area or not area.cards or #area.cards == 0 then return nil end
+    local ranks, suits = {}, {}
+    for _, c in ipairs(area.cards) do
+        if c.base then
+            local ra, su = c.base.value, c.base.suit
+            if ra then ranks[ra] = (ranks[ra] or 0) + 1 end
+            if su then suits[su] = (suits[su] or 0) + 1 end
+        end
+    end
+    local max_same, pairs_n, trips_n, quad = 0, 0, 0, 0
+    local rparts = {}
+    for ra, n in pairs(ranks) do
+        rparts[#rparts + 1] = ra .. "x" .. n
+        if n > max_same then max_same = n end
+        if n >= 2 then pairs_n = pairs_n + 1 end
+        if n >= 3 then trips_n = trips_n + 1 end
+        if n >= 4 then quad = quad + 1 end
+    end
+    table.sort(rparts)
+    local max_suit, sparts = 0, {}
+    for su, n in pairs(suits) do
+        sparts[#sparts + 1] = su .. "x" .. n
+        if n > max_suit then max_suit = n end
+    end
+    table.sort(sparts)
+    -- What the counts permit (defaults; joker exceptions handled by the model).
+    local can = {}
+    if quad >= 1 then can[#can + 1] = "Four of a Kind" end
+    if trips_n >= 1 and (pairs_n >= 2 or trips_n >= 2) then can[#can + 1] = "Full House" end
+    if trips_n >= 1 then can[#can + 1] = "Three of a Kind" end
+    if pairs_n >= 2 then can[#can + 1] = "Two Pair" end
+    if pairs_n >= 1 then can[#can + 1] = "Pair" end
+    if max_suit >= 5 then can[#can + 1] = "Flush (5 same suit available)" end
+    local notes = {}
+    if trips_n == 0 then notes[#notes + 1] = "no three-of-a-kind present, so Full House and Four of a Kind are IMPOSSIBLE" end
+    if max_suit < 5 then notes[#notes + 1] = "no suit has 5 cards, so a Flush is not available" end
+    return {
+        ranks = table.concat(rparts, " "),
+        suits = table.concat(sparts, " "),
+        best = (#can > 0) and table.concat(can, ", ") or "High Card only",
+        notes = (#notes > 0) and table.concat(notes, "; ") or nil,
+    }
+end
+
 -- A pack can offer either special cards (joker/tarot/planet/spectral) or plain
 -- playing cards (standard pack); describe each with the right renderer.
 local function describe_any(card)
@@ -315,6 +364,7 @@ function M.capture()
     -- cards target a card in hand, so the AI must see the candidates).
     if is_hand or is_pack then
         snap.held = list_playing(G.hand)
+        snap.held_comp = hand_composition(G.hand)
         snap.selected = {}
         if G.hand and G.hand.highlighted then
             for _, c in ipairs(G.hand.highlighted) do snap.selected[#snap.selected + 1] = describe_playing(c) end
@@ -415,6 +465,13 @@ function M.to_prompt(snap)
         if s then p[#p + 1] = s end
     end
     add("HELD CARDS", snap.held)
+    if snap.held_comp then
+        p[#p + 1] = "HAND COMPOSITION (facts — trust these over your own count):"
+        p[#p + 1] = "  rank counts: " .. snap.held_comp.ranks
+        p[#p + 1] = "  suit counts: " .. snap.held_comp.suits
+        p[#p + 1] = "  best hand type available from these cards: " .. snap.held_comp.best
+        if snap.held_comp.notes then p[#p + 1] = "  constraints: " .. snap.held_comp.notes end
+    end
     add("SELECTED", snap.selected)
     if snap.deck then
         p[#p + 1] = string.format("DECK REMAINING (%d): suits %s | ranks %s",
