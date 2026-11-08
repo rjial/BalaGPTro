@@ -13,15 +13,31 @@ BalaGPTro = {
     playlog = {},                   -- rolling log of hands played this run
 }
 
--- Make config.lua authoritative: re-read it each launch and overwrite the
--- SMODS-persisted config. Edits to config.lua always take effect; changes made
--- in the in-game settings tab last only for the current session.
+-- config.lua is authoritative ONLY for keys the player edited in the file itself.
+-- We keep the last-applied config.lua snapshot in the persisted config; on launch
+-- we overwrite a key only when its config.lua value changed since that snapshot.
+-- Result: edits to config.lua always take effect, while toggles changed in the
+-- in-game settings tab (and saved by SMODS) survive a restart.
 do
     local chunk = loadfile(path .. "/config.lua")
     if chunk then
         local ok, defaults = pcall(chunk)
         if ok and type(defaults) == "table" then
-            for k, v in pairs(defaults) do mod.config[k] = v end
+            local seed = mod.config._file_seed
+            local first_run = type(seed) ~= "table"
+            for k, v in pairs(defaults) do
+                if first_run then
+                    -- No snapshot yet: keep persisted values, only fill missing keys.
+                    if mod.config[k] == nil then mod.config[k] = v end
+                elseif seed[k] ~= v then
+                    -- config.lua changed this key since last launch: it wins.
+                    mod.config[k] = v
+                end
+            end
+            -- Remember this launch's config.lua values for the next comparison.
+            local snap = {}
+            for k, v in pairs(defaults) do snap[k] = v end
+            mod.config._file_seed = snap
         end
     end
 end
