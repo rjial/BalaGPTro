@@ -13,6 +13,19 @@ BalaGPTro = {
     playlog = {},                   -- rolling log of hands played this run
 }
 
+-- Make config.lua authoritative: re-read it each launch and overwrite the
+-- SMODS-persisted config. Edits to config.lua always take effect; changes made
+-- in the in-game settings tab last only for the current session.
+do
+    local chunk = loadfile(path .. "/config.lua")
+    if chunk then
+        local ok, defaults = pcall(chunk)
+        if ok and type(defaults) == "table" then
+            for k, v in pairs(defaults) do mod.config[k] = v end
+        end
+    end
+end
+
 BalaGPTro.prompts   = require("prompts")
 BalaGPTro.state     = require("state")
 BalaGPTro.providers = require("providers")
