@@ -10,3 +10,6 @@
 
 # Local notes
 TODO.local.md
+
+# Local config with plaintext API key (copy from config.example.lua)
+/config.lua

@@ -202,8 +202,9 @@ through `G.E_MANAGER` before any UI update, so the game never freezes or races.
 
 ## Security
 
-Your API key is stored in **plaintext** in `config.lua`. Do not commit it to
-version control or share your config file. The mod never logs the key (it is
+Your API key is stored in **plaintext** in `config.lua`. That file is
+**gitignored** — copy `config.example.lua` to `config.lua` and fill in your key
+there. Do not commit `config.lua` or share it. The mod never logs the key (it is
 redacted even with `debug_log` on).
 
 ---
