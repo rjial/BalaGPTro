@@ -23,6 +23,41 @@ local function http_error(code, body)
     return "HTTP " .. tostring(code) .. ": " .. tostring(body or ""):sub(1, 300)
 end
 
+-- Reassemble an OpenAI-style SSE stream (lines of `data: {chunk}`) into the full
+-- text, for proxies that stream even when stream=false is requested. Returns the
+-- concatenated delta content, or nil if the body is not a recognizable stream.
+local function parse_openai_sse(body)
+    if type(body) ~= "string" or not body:find("data:", 1, true) then return nil end
+    local parts, saw_chunk = {}, false
+    for line in body:gmatch("[^\r\n]+") do
+        local payload = line:match("^%s*data:%s*(.+)$")
+        if payload and payload ~= "[DONE]" then
+            local ok, chunk = pcall(json.decode, payload)
+            if ok and type(chunk) == "table" then
+                saw_chunk = true
+                local delta = dig(chunk, "choices", 1, "delta", "content")
+                    or dig(chunk, "choices", 1, "message", "content")
+                    or dig(chunk, "choices", 1, "text")
+                if type(delta) == "string" then parts[#parts + 1] = delta end
+            end
+        end
+    end
+    if not saw_chunk then return nil end
+    local text = table.concat(parts)
+    return text ~= "" and text or nil
+end
+
+-- Decode JSON; on failure return a message that includes a snippet of the raw
+-- body so the cause (empty reply, HTML error page, SSE stream) is visible in the
+-- chat overlay without needing the console log.
+local function decode_or_error(provider, body)
+    local ok, t = pcall(json.decode, body)
+    if ok then return t end
+    local raw = tostring(body or "")
+    local snippet = raw == "" and "(empty body)" or raw:sub(1, 200)
+    return nil, "Bad JSON from " .. provider .. " (" .. #raw .. " bytes): " .. snippet
+end
+
 --------------------------------------------------------------------- Anthropic
 M.anthropic = {
     default_model = "claude-opus-4-8",
@@ -43,8 +78,8 @@ M.anthropic = {
     end,
     parse_response = function(code, body)
         if code < 200 or code >= 300 then return nil, http_error(code, body) end
-        local ok, t = pcall(json.decode, body)
-        if not ok then return nil, "Bad JSON from Anthropic" end
+        local t, derr = decode_or_error("Anthropic", body)
+        if not t then return nil, derr end
         local text = dig(t, "content", 1, "text")
         if text then return text end
         return nil, dig(t, "error", "message") or "No content in Anthropic response"
@@ -62,6 +97,7 @@ M.openai = {
             model = (cfg.model ~= "" and cfg.model) or M.openai.default_model,
             max_tokens = cfg.max_tokens or 600,
             messages = msgs,
+            stream = false,
         }
         local headers = { ["content-type"] = "application/json" }
         if cfg.api_key and cfg.api_key ~= "" then headers["authorization"] = "Bearer " .. cfg.api_key end
@@ -69,8 +105,13 @@ M.openai = {
     end,
     parse_response = function(code, body)
         if code < 200 or code >= 300 then return nil, http_error(code, body) end
-        local ok, t = pcall(json.decode, body)
-        if not ok then return nil, "Bad JSON from OpenAI" end
+        local t, derr = decode_or_error("OpenAI", body)
+        if not t then
+            -- Proxy may stream (SSE) regardless of stream=false; reassemble it.
+            local streamed = parse_openai_sse(body)
+            if streamed then return streamed end
+            return nil, derr
+        end
         local msg = dig(t, "choices", 1, "message")
         local text = msg and msg.content
         -- Some reasoning models leave `content` empty and put text in reasoning_content.
@@ -112,8 +153,8 @@ M.gemini = {
     end,
     parse_response = function(code, body)
         if code < 200 or code >= 300 then return nil, http_error(code, body) end
-        local ok, t = pcall(json.decode, body)
-        if not ok then return nil, "Bad JSON from Gemini" end
+        local t, derr = decode_or_error("Gemini", body)
+        if not t then return nil, derr end
         local text = dig(t, "candidates", 1, "content", "parts", 1, "text")
         if text then return text end
         return nil, dig(t, "error", "message") or "No content in Gemini response"
