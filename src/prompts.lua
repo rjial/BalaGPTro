@@ -46,6 +46,8 @@ local function advisor_task(phase)
         return "You are in the SHOP. Go through EACH item under SHOP JOKERS / SHOP BOOSTERS / " ..
             "SHOP VOUCHERS by name with a BUY or SKIP verdict and a one-line reason, respecting " ..
             "its buy cost vs your current dollars; end with one line on reroll and saving money. " ..
+            "Check JOKER SLOTS / CONSUMABLE SLOTS: if slots are FULL, buying another of that type " ..
+            "requires selling an owned one first — say which to sell, or advise skipping. " ..
             "Only discuss items that appear in the state — never invent items."
     elseif phase == "opening_pack" then
         return "You are opening a PACK. Name each offered card and say which to pick (up to the " ..

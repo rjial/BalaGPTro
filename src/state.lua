@@ -276,6 +276,17 @@ function M.capture()
     snap.dollars = g.dollars
     snap.jokers      = list_special(G.jokers)
     snap.consumables = list_special(G.consumeables)
+    -- Slot capacity: the model must know when joker/consumable slots are FULL, so
+    -- it can tell you a purchase requires selling/using a card first.
+    local function slots(area)
+        if not area then return nil end
+        local used = area.cards and #area.cards or 0
+        local cap = area.config and area.config.card_limit
+        if not cap then return nil end
+        return { used = used, cap = cap, full = used >= cap }
+    end
+    snap.joker_slots      = slots(G.jokers)
+    snap.consumable_slots = slots(G.consumeables)
 
     -- Run-so-far context (cheap): active tags and redeemed vouchers show the build
     -- trajectory. Each Advice is otherwise stateless (no turn-by-turn history).
@@ -477,7 +488,17 @@ function M.to_prompt(snap)
         p[#p + 1] = string.format("DECK REMAINING (%d): suits %s | ranks %s",
             snap.deck.total, snap.deck.suits, snap.deck.ranks)
     end
+    if snap.joker_slots then
+        local js = snap.joker_slots
+        p[#p + 1] = string.format("JOKER SLOTS: %d/%d used%s", js.used, js.cap,
+            js.full and " — FULL (must sell a joker before buying another)" or "")
+    end
     add("JOKERS (left-to-right order matters)", snap.jokers)
+    if snap.consumable_slots then
+        local cs = snap.consumable_slots
+        p[#p + 1] = string.format("CONSUMABLE SLOTS: %d/%d used%s", cs.used, cs.cap,
+            cs.full and " — FULL" or "")
+    end
     add("CONSUMABLES", snap.consumables)
     add("ACTIVE TAGS", snap.tags)
     add("REDEEMED VOUCHERS (run)", snap.vouchers)
